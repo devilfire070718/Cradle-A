@@ -72,6 +72,9 @@ class PipelineRunner():
         self.skill_registry = srf.create(config.env_short_name, skill_configs=config.skill_configs,
                                          embedding_provider=self.embed_provider)
 
+        logger.write(f"Created skill registry with {len(self.skill_registry.get_all_skill_names())} skills")
+        logger.write(f"Skills include: {self.skill_registry.get_all_skill_names()}")
+
         ucf = UIControlFactory()
         ucf.register_builder(config.env_short_name, config.ui_control_name)
         self.env_ui_control = ucf.create(config.env_short_name)
