@@ -3,3 +3,4 @@ from .claude import ClaudeProvider
 from .restful_claude_client import RestfulClaudeClient
 from .restful_claude import RestfulClaudeProvider
 from .llm_factory import LLMFactory
+from .kimi import KimiProvider  # 新增
