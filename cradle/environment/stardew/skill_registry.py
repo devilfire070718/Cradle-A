@@ -7,13 +7,16 @@ from cradle.config import Config
 from cradle.environment import SkillRegistry
 from cradle.environment import Skill
 from cradle.utils.singleton import Singleton
+from cradle.log import Logger
 
 
 config = Config()
+logger = Logger()
 
 SKILLS = {}
 def register_skill(name):
     def decorator(skill):
+        logger.write(f"Registering skill: {name}")  # 添加这行
 
         skill_name = name
         skill_function = skill
@@ -27,7 +30,7 @@ def register_skill(name):
 
         skill_ins = Skill(skill_name,
                        skill_function,
-                       "" , # skill_embedding
+                       None , # skill_embedding
                        skill_code,
                        skill_code_base64)
         SKILLS[skill_name] = skill_ins
@@ -38,15 +41,36 @@ def register_skill(name):
 
 
 class StardewSkillRegistry(SkillRegistry, metaclass=Singleton):
+    class StardewSkillRegistry(SkillRegistry, metaclass=Singleton):
+        def __init__(self,
+                     *args,
+                     skill_configs: dict[str, Any] = config.skill_configs,
+                     embedding_provider=None,
+                     **kwargs):
 
-    def __init__(self,
-                 *args,
-                 skill_configs: dict[str, Any] = config.skill_configs,
-                 embedding_provider = None,
-                 **kwargs):
+            super().__init__(skill_configs=skill_configs, embedding_provider=embedding_provider)
 
-        if skill_configs[constants.SKILL_CONFIG_REGISTERED_SKILLS] is None:
-            skill_configs[constants.SKILL_CONFIG_REGISTERED_SKILLS] = SKILLS
+            logger.write(f"After super init, hasattr skill_registered: {hasattr(self, 'skill_registered')}")
 
-        super(StardewSkillRegistry, self).__init__(skill_configs=skill_configs,
-                                                   embedding_provider=embedding_provider)
+            if skill_configs[constants.SKILL_CONFIG_REGISTERED_SKILLS] is not None:
+                self.skill_registered = skill_configs[constants.SKILL_CONFIG_REGISTERED_SKILLS]
+                logger.write(f"Set skill_registered from config: {len(self.skill_registered)}")
+            else:
+                self.skill_registered = SKILLS
+                logger.write(f"Set skill_registered from SKILLS: {len(self.skill_registered)}")
+
+    def get_all_skill_names(self):
+        """返回所有已注册技能的名称列表"""
+        return list(self.skills.keys()) if hasattr(self, 'skills') else list(SKILLS.keys())
+
+    def has_skill(self, skill_name):
+        """检查技能是否存在"""
+        return skill_name in (self.skills if hasattr(self, 'skills') else SKILLS)
+
+    def debug_skill_registry(self):
+        """输出技能注册表的调试信息"""
+        logger.write(f"SKILLS dict contains: {list(SKILLS.keys())}")
+        if hasattr(self, 'skills'):
+            logger.write(f"Registry skills contains: {list(self.skills.keys())}")
+        else:
+            logger.write("Registry has no 'skills' attribute")
