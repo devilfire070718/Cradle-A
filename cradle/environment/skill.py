@@ -4,6 +4,7 @@ import json
 from typing import Type, AnyStr, Any
 
 import numpy as np
+from cradle.log import Logger
 import dill
 from dataclasses import dataclass
 from dataclass_wizard import JSONWizard
@@ -12,6 +13,7 @@ from dataclass_wizard.type_def import JSONObject, Encoder
 
 from cradle.config import Config
 
+logger = Logger()
 config = Config()
 
 
@@ -33,7 +35,19 @@ class Skill(JSONWizard):
     def from_dict(cls: Type[W], o: JSONObject) -> W:
 
         skill_function = dill.loads(bytes.fromhex(o['skill_function'])) # Load skill function from hex string
-        skill_embedding = np.frombuffer(base64.b64decode(o['skill_embedding']), dtype=np.float64)
+
+        # 添加 embedding 检查逻辑
+        if o['skill_embedding'] == "":
+            logger.write(f"# Skill # Empty embedding detected for skill: {o['skill_name']}")
+            skill_embedding = np.array([])  # 创建空数组
+        else:
+            try:
+                skill_embedding = np.frombuffer(base64.b64decode(o['skill_embedding']), dtype=np.float64)
+                logger.write(f"# Skill # Loaded embedding for '{o['skill_name']}': shape {skill_embedding.shape}")
+            except Exception as e:
+                logger.error(f"# Skill # Failed to decode embedding for '{o['skill_name']}': {e}")
+                skill_embedding = np.array([])
+
 
         return cls(
             skill_name=o['skill_name'],
