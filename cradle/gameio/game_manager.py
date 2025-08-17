@@ -167,6 +167,10 @@ class GameManager:
 
                 skill_name, skill_params = self.skill_registry.convert_expression_to_skill(skill)
 
+                logger.write(f"Available skills in registry: {list(self.skill_registry.get_all_skill_names())}")
+                logger.write(f"Looking for skill: {skill_name}")
+                logger.write(f"Skill exists in registry: {self.skill_registry.has_skill(skill_name)}")
+
                 logger.write(f"Executing skill: {skill_name} with params: {skill_params}")
 
                 # Enable OCR for composite skills, start the ocr check
