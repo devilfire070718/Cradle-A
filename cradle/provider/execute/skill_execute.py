@@ -49,6 +49,8 @@ class SkillExecuteProvider(BaseProvider):
 
         start_frame_id = self.video_recorder.get_current_frame_id()
         exec_info = self.gm.execute_actions(skill_steps)
+        logger.write(f"About to execute skill steps: {skill_steps}")
+        self.gm.skill_registry.debug_skill_registry()
         screenshot_path = self.gm.capture_screen()
         end_frame_id = self.video_recorder.get_current_frame_id()
 
