@@ -87,7 +87,9 @@ def open_map():
     """
     Opening the map.
     """
+    logger.write("Executing open_map skill - pressing 'm' key")
     io_env.key_press("m")
+    logger.write("open_map skill execution completed")
 
 @register_skill("close_map")
 def close_map():
