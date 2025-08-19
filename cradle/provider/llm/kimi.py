@@ -39,6 +39,10 @@ class KimiProvider(LLMProvider):
         zhipu_api_key = os.getenv("ZHIPU_API_KEY")
         zhipu_base_url = "https://open.bigmodel.cn/api/paas/v4"
 
+        if not zhipu_api_key:
+            logger.error("# KimiProvider # ZHIPU_API_KEY not found in environment")
+            return [0.0] * 2048
+
         """使用 Kimi 的 embedding API"""
         headers = {
             "Authorization": f"Bearer {zhipu_api_key}",
@@ -50,7 +54,7 @@ class KimiProvider(LLMProvider):
             "input": text
         }
 
-        logger.write(f"# KimiProvider # Request URL: {zhipu_api_key}/embeddings")
+        logger.write(f"# KimiProvider # Request URL: {zhipu_base_url}/embeddings")
         logger.write(f"# KimiProvider # Request payload: {payload}")
 
         try:
@@ -70,16 +74,19 @@ class KimiProvider(LLMProvider):
                 raise Exception(f"Embedding API request failed: {response.status_code}")
 
             response_data = response.json()
-            logger.write(
-                f"# KimiProvider # Successfully got embedding, dimension: {len(response_data['data'][0]['embedding'])}")
-            return response_data["data"][0]["embedding"]
+            embedding = response_data["data"][0]["embedding"]
 
-        except requests.exceptions.RequestException as e:
-            logger.error(f"# KimiProvider # Network error during embedding request: {e}")
-            raise
+            # 验证维度
+            if len(embedding) != 2048:
+                logger.error(f"# KimiProvider # Unexpected embedding dimension: {len(embedding)}, expected 2048")
+                return [0.0] * 2048  # 返回零向量
+
+            logger.write(f"# KimiProvider # Successfully got embedding, dimension: {len(embedding)}")
+            return embedding
+
         except Exception as e:
-            logger.error(f"# KimiProvider # Unexpected error during embedding: {e}")
-            raise
+            logger.error(f"# KimiProvider # Error during embedding: {e}")
+            return [0.0] * 2048  # 返回零向量作为后备
 
     def get_embedding_dim(self) -> int:
         return 2048  # 智谱 embedding-3 模型的维度
