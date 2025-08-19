@@ -99,6 +99,19 @@ class SkillRegistry():
 
         self.skills = self.filter_skills(self.skills)
 
+    def validate_and_fix_embeddings(self):
+        """验证并修复所有技能的嵌入向量维度"""
+        expected_dim = self.embedding_provider.get_embedding_dim()
+
+        for skill_name, skill in self.skills.items():
+            if skill.skill_embedding.shape[0] != expected_dim:
+                logger.write(f"Fixing embedding dimension for skill: {skill_name}")
+                try:
+                    new_embedding = self.get_embedding(skill_name, inspect.getdoc(skill.skill_function))
+                    skill.skill_embedding = np.array(new_embedding, dtype=np.float64)
+                except Exception as e:
+                    logger.error(f"Failed to regenerate embedding for {skill_name}: {e}")
+                    skill.skill_embedding = np.zeros(expected_dim, dtype=np.float64)
 
     def set_embedding_provider(self, embedding_provider):
         self.embedding_provider = embedding_provider
@@ -106,7 +119,6 @@ class SkillRegistry():
 
     def get_embedding(self, skill_name, skill_doc):
         return np.array(self.embedding_provider.embed_query('{}: {}'.format(skill_name, skill_doc)))
-
 
     def load_skills_from_file(self, file_path) -> Dict[str, Skill]:
 
@@ -124,13 +136,18 @@ class SkillRegistry():
 
             regenerate_flag = False
 
-            if skill_code_base64 != skill_local[skill_name].skill_code_base64: # The skill_code is modified
+            if skill_code_base64 != skill_local[skill_name].skill_code_base64:  # The skill_code is modified
                 regenerate_flag = True
 
-            if not is_valid_value(skill_embedding): # The skill_embedding is invalid
+            if not is_valid_value(skill_embedding):  # The skill_embedding is invalid
                 regenerate_flag = True
 
-            if skill_name not in self.skill_registered.keys(): # The skill is not in the skill registry
+                # 添加对空 embedding 的显式检查（0 维数组）
+            if skill_embedding.size == 0:  # 检查空的 embedding 数组
+                logger.write(f"检测到技能 {skill_name} 的空 embedding，强制重新生成")
+                regenerate_flag = True
+
+            if skill_name not in self.skill_registered.keys():  # The skill is not in the skill registry
                 regenerate_flag = True
 
             if not regenerate_flag:
@@ -140,11 +157,29 @@ class SkillRegistry():
                                            skill_local[skill_name].skill_embedding,
                                            skill_local[skill_name].skill_code,
                                            skill_code_base64)
-            else: # skill_code has been modified, we should recompute embedding
+            else:
                 logger.write(f"Regenerate skill {skill_name}")
-                self.register_skill_from_code(skill_local[skill_name].skill_code)
+                try:
+                    embedding = self.get_embedding(skill_name,
+                                                   inspect.getdoc(self.skill_registered[skill_name].skill_function))
+                except Exception as e:
+                    logger.error(f"Failed to generate embedding for {skill_name}: {e}")
+                    # 使用零向量作为后备方案
+                    embedding = np.zeros(2048, dtype=np.float64)
+
+                skills[skill_name] = Skill(skill_name,
+                                           self.skill_registered[skill_name].skill_function,
+                                           embedding,
+                                           self.skill_registered[skill_name].skill_code,
+                                           skill_code_base64)
 
         self.store_skills_to_file(file_path, skills)
+
+        # 在 load_skills_from_file 方法的最后添加验证
+        for skill_name in skill_local.keys():
+            if skill_name not in skills:
+                logger.error(f"技能 {skill_name} 重新生成失败，使用原始技能对象")
+                skills[skill_name] = skill_local[skill_name]
 
         return skills
 
@@ -485,6 +520,34 @@ class SkillRegistry():
 
         task_emb = np.array(self.embedding_provider.embed_query(query_task))
 
+        # 添加详细的维度检查逻辑
+        logger.write(f"# SkillRegistry # Task embedding dimension: {task_emb.shape}")
+
+        # 检查每个技能的 embedding 维度
+        problematic_skills = []
+        for skill_name, skill in self.skills.items():
+            skill_emb_shape = skill.skill_embedding.shape
+            if skill_emb_shape != task_emb.shape:
+                problematic_skills.append({
+                    'name': skill_name,
+                    'shape': skill_emb_shape,
+                    'expected_shape': task_emb.shape
+                })
+
+        if problematic_skills:
+            logger.error(
+                f"# SkillRegistry # Found {len(problematic_skills)} skills with mismatched embedding dimensions:")
+            for skill_info in problematic_skills:
+                logger.error(
+                    f"# SkillRegistry # Skill '{skill_info['name']}': shape {skill_info['shape']}, expected {skill_info['expected_shape']}")
+
+                # 提供解决建议
+            logger.error(
+                "# SkillRegistry # Suggestion: Clear skill embeddings and regenerate with current embedding provider")
+            raise ValueError(
+                f"Embedding dimension mismatch detected. {len(problematic_skills)} skills have incorrect dimensions.")
+
+        # 原有的排序逻辑
         sorted_skills = sorted(self.skills.items(), key=lambda x: -np.dot(x[1].skill_embedding, task_emb))
 
         for skill in sorted_skills:

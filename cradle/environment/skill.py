@@ -39,14 +39,16 @@ class Skill(JSONWizard):
         # 添加 embedding 检查逻辑
         if o['skill_embedding'] == "":
             logger.write(f"# Skill # Empty embedding detected for skill: {o['skill_name']}")
-            skill_embedding = np.array([])  # 创建空数组
+            # 使用正确维度的零向量而不是空数组
+            skill_embedding = np.zeros(2048, dtype=np.float64)
         else:
             try:
                 skill_embedding = np.frombuffer(base64.b64decode(o['skill_embedding']), dtype=np.float64)
                 logger.write(f"# Skill # Loaded embedding for '{o['skill_name']}': shape {skill_embedding.shape}")
             except Exception as e:
                 logger.error(f"# Skill # Failed to decode embedding for '{o['skill_name']}': {e}")
-                skill_embedding = np.array([])
+                # 同样使用正确维度的零向量
+                skill_embedding = np.zeros(2048, dtype=np.float64)
 
 
         return cls(
