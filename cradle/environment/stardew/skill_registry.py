@@ -8,7 +8,7 @@ from cradle.environment import SkillRegistry
 from cradle.environment import Skill
 from cradle.utils.singleton import Singleton
 from cradle.log import Logger
-
+import numpy as np
 
 config = Config()
 logger = Logger()
@@ -29,10 +29,11 @@ def register_skill(name):
         skill_code_base64 = base64.b64encode(skill_code.encode('utf-8')).decode('utf-8')
 
         skill_ins = Skill(skill_name,
-                       skill_function,
-                       None , # skill_embedding
-                       skill_code,
-                       skill_code_base64)
+                          skill_function,
+                          np.zeros(2048, dtype=np.float64),  # 使用正确维度的零向量
+                          skill_code,
+                          skill_code_base64)
+
         SKILLS[skill_name] = skill_ins
 
         return skill_ins
@@ -41,23 +42,23 @@ def register_skill(name):
 
 
 class StardewSkillRegistry(SkillRegistry, metaclass=Singleton):
-    class StardewSkillRegistry(SkillRegistry, metaclass=Singleton):
-        def __init__(self,
-                     *args,
-                     skill_configs: dict[str, Any] = config.skill_configs,
-                     embedding_provider=None,
-                     **kwargs):
 
-            super().__init__(skill_configs=skill_configs, embedding_provider=embedding_provider)
+    def __init__(self,
+                 *args,
+                 skill_configs: dict[str, Any] = config.skill_configs,
+                 embedding_provider=None,
+                 **kwargs):
 
-            logger.write(f"After super init, hasattr skill_registered: {hasattr(self, 'skill_registered')}")
+        # 在调用父类初始化之前设置 skill_registered
+        if skill_configs[constants.SKILL_CONFIG_REGISTERED_SKILLS] is not None:
+            skill_configs[constants.SKILL_CONFIG_REGISTERED_SKILLS] = {**SKILLS, **skill_configs[
+                constants.SKILL_CONFIG_REGISTERED_SKILLS]}
+        else:
+            skill_configs[constants.SKILL_CONFIG_REGISTERED_SKILLS] = SKILLS
 
-            if skill_configs[constants.SKILL_CONFIG_REGISTERED_SKILLS] is not None:
-                self.skill_registered = skill_configs[constants.SKILL_CONFIG_REGISTERED_SKILLS]
-                logger.write(f"Set skill_registered from config: {len(self.skill_registered)}")
-            else:
-                self.skill_registered = SKILLS
-                logger.write(f"Set skill_registered from SKILLS: {len(self.skill_registered)}")
+        super().__init__(skill_configs=skill_configs, embedding_provider=embedding_provider)
+
+        logger.write(f"After super init, hasattr skill_registered: {hasattr(self, 'skill_registered')}")
 
     def get_all_skill_names(self):
         """返回所有已注册技能的名称列表"""
