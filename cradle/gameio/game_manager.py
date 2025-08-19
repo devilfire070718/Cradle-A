@@ -120,6 +120,8 @@ class GameManager:
 
 
     def retrieve_skills(self, query_task, skill_num, screen_type):
+        # 在检索技能之前验证和修复嵌入向量维度
+        self.skill_registry.validate_and_fix_embeddings()
         return self.skill_registry.retrieve_skills(query_task, skill_num, screen_type)
 
 
